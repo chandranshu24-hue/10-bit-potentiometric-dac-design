@@ -2,8 +2,38 @@
 
 This repository documents the iterative design, debugging, and sizing optimization of a CMOS Transmission Gate (TG) using the **SkyWater 130nm PDK** and **ngspice**. 
 
----
+## **INTIAL PROMPT -"Act as an analog IC engineer. Generate a clean ngspice subcircuit file named tg_switch.spice for a CMOS transmission gate using the SKY130 PDK. Use nfet_01v8 and pfet_01v8 primitives. The analog input/output path must support a range up to 3.3V, while the gate control lines (sel and sel_b) operate at 1.8V. Keep comments to an absolute minimum, use standard net names (in, out, sel, sel_b), and append a simple .control block to sweep the input from 0V to 3.3V to plot the on-resistance ($R_{on}$)."** 
 
+SOLUTION:
+```
+* SKY130 CMOS Transmission Gate
+
+.subckt tg_switch in out sel sel_b vdd vss
+XM1 out sel in vss sky130_fd_pr__nfet_01v8 w=1 l=0.15
+XM2 in sel_b out vdd sky130_fd_pr__pfet_01v8 w=2 l=0.15
+.ends
+
+* Testbench
+Vdd vdd 0 dc 1.8V
+Vss vss 0 dc 0V
+Vsel sel 0 dc 1.8V
+Vsel_b sel_b 0 dc 0V
+Vin in 0 dc 0V
+Iload out 0 1uA
+
+X1 in out sel sel_b vdd vss tg_switch
+
+* Includes (adjust path to your SKY130 PDK installation)
+* .lib "sky130_fd_pr/models/sky130.lib.spice" tt
+
+.control
+dc Vin 0 3.3 0.01
+let ron = (v(in) - v(out)) / 1u
+plot ron
+.endc
+
+---
+```
 ## 📋 Project Journey Overview
 
 | Step | Objective / Issue Encountered | Root Cause | Resolution |
