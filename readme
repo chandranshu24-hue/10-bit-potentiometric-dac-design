@@ -1,0 +1,44 @@
+# Sky130 CMOS Transmission Gate Simulation & Optimization
+
+This repository documents the iterative design, debugging, and sizing optimization of a CMOS Transmission Gate (TG) using the **SkyWater 130nm PDK** and **ngspice**. 
+
+---
+
+## 📋 Project Journey Overview
+
+| Step | Objective / Issue Encountered | Root Cause | Resolution |
+| :--- | :--- | :--- | :--- |
+| **1** | Initialize `.spice` netlist & run simulation | `Error: unknown subckt: x1.xm1` | Corrected instance prefix from `XM` to `X` (Sky130 devices are subcircuits). |
+| **2** | Handle missing model libraries | `Error: Could not find include file...` | Restored the stable `.lib` wrapper path matching the design environment. |
+| **3** | Characterize $R_{on}$ (First Success) | Massive $12\text{ k}\Omega$ resistance bottleneck at $1.0\text{V}$ | Re-sized NMOS and PMOS widths to balance mobility differences and flatten $R_{on}$. |
+
+---
+
+## 🛠 Step 1: Initial Implementation & Netlist Syntax Fix
+
+### The Prompt
+> *How do I simulate a Sky130 CMOS Transmission Gate testbench in ngspice?*
+
+### The Initial Netlist (`new_circuit.spice`)
+```spice
+* SKY130 CMOS Transmission Gate
+.subckt tg_switch in out sel sel_b vdd vss
+XM1 out sel in vss sky130_fd_pr__nfet_01v8 w=1 l=0.15
+XM2 in sel_b out vdd sky130_fd_pr__pfet_01v8 w=2 l=0.15
+.ends
+
+* Testbench
+Vdd vdd 0 dc 1.8V
+Vss vss 0 dc 0V
+Vsel sel 0 dc 1.8V
+Vsel_b sel_b 0 dc 0V
+Vin in 0 dc 0V
+Iload out 0 1uA
+
+X1 in out sel sel_b vdd vss tg_switch
+
+.control
+dc Vin 0 3.3 0.01
+let ron = (v(in) - v(out)) / 1u
+plot ron
+.endc
