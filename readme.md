@@ -72,3 +72,73 @@ plot inp1 inp2
 .endc
 
 .end
+```
+
+# **Comparative Analysis: Handcoded vs. AI-Assisted Analog Multiplexer Switch Design**
+
+This repository documents a structural and electrical simulation comparison between two implementation methodologies for a 2-to-1 analog multiplexer pass-gate switch. Both implementations utilize the SkyWater 130nm PDK (`sky130_fd_pr`) and are evaluated via `ngspice` transient analysis.
+
+---
+
+## **Architectural Overview**
+
+* **Handcoded Approach:** Features a self-contained layout topology. It implements local digital control logic directly within the flat netlist file using two integrated CMOS inverter stages to dynamically derive internal complementary clock select lines from a single input pulse.
+* **AI-Assisted Approach:** Employs a modular, hierarchical IP approach by encapsulating the pass-gate matrix within a reusable subcircuit macro (`.subckt`). It relies entirely on external differential digital lines (`din` and `dinb`) generated at the system level to drive the transmission gates.
+
+---
+
+## **Design Methodology Comparison Matrix**
+
+| **Parameter / Metric** | **Handcoded Approach (Without AI)** | **AI-Assisted Approach** |
+| :--- | :--- | :--- |
+| **Hierarchy Style** | **Flat Implementation:** All transistors are instantiated sequentially in the main body of the netlist without modular wrappers. | **Hierarchical Macro:** Encapsulates the core switch core inside a reusable `.subckt switch` block definition. |
+| **Local Gate Drive Logic** | **Integrated:** Includes 2 local CMOS inverter stages (`XM1`/`XM2` and `XM7`/`XM8`) to locally buffer and invert the control signals. | **Externalized:** Requires direct external connections to true and complementary digital select lines from the testbench wrapper. |
+| **Transistor Geometry Sizing** | **Narrower Channels:** <br>• NFET: $W = 0.6\,\mu\text{m},\, L = 0.15\,\mu\text{m}$<br>• PFET: $W = 1.2\,\mu\text{m},\, L = 0.15\,\mu\text{m}$ | **Wider Channels (Lower $R_{\text{on}}$):** <br>• NFET: $W = 1.0\,\mu\text{m},\, L = 0.15\,\mu\text{m}$<br>• PFET: $W = 2.0\,\mu\text{m},\, L = 0.15\,\mu\text{m}$ |
+| **PDK Scaling & Binning Mechanics** | **Literal Parameters:** Passes specific scale strings directly within instance calls. Lacks a global scale directive card. | **Global Micron Scaling:** Utilizes `.option scale=1u`, passing clean integer-based parameters to eliminate PDK model binning errors. |
+| **Simulation Data Density** | **143 Data Rows:** Generated using a fixed `.tran 0.1n 10n` simulation card layout. | **123 Data Rows:** Generated using a tuned `.tran 81.3p 10n` setup to constrain output steps. |
+| **Floating Node Protection** | **Explicit Load:** Wires an artificial $1\,\text{fF}$ output shunt capacitor (`C1`) to ground to prevent matrix initialization failures. | **Native Node Evaluation:** Leverages stable boundary conditions across pass gates without requiring explicit load shunts. |
+| **Plot Engine Formatting Syntax** | **Explicit Function Wrap:** Requires wrapping node names in functional notation blocks (e.g., `plot v(vout)`). | **Raw Vector Call:** References nodes as direct variables (e.g., `plot vout`) across separated graphic display windows. |
+
+---
+
+## **Simulation Netlist Artifacts**
+
+### **1. Handcoded Netlist (Without AI)**
+```spice
+* Fully Corrected Transmission Gate Testbench
+
+* 1. Fixed: Restored working absolute library path
+.lib "/workspaces/vsd-7nm/avsddac_3v3_sky130_v1/sky130_fd_pr/models/sky130.lib.spice" tt
+
+* Inverter 1 (din -> dinb)
+XM1 dinb din 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM2 dinb din vdd vdd sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+* Inverter 2 (dinb -> dd)
+XM7 dd dinb 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM8 dd dinb vdd vdd sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+* Transmission Gate (Fixed: Removed trailing non-breaking hidden spaces)
+XM3 vout dinb inp2 inp2 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM4 inp1 dd vout vout sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM5 vout dinb inp1 inp1 sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+XM6 inp2 dd vout vout sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+* Voltage Sources (Fixed: Dropped 'V' from '3.3V' to prevent syntax confusion)
+V1 din 0 PULSE 0 1.8 0ns 100p 100p 5n 10n
+V2 vdd 0 dc 3.3
+V4 inp2 0 dc 0
+V3 inp1 0 dc 1.65
+
+* Added a tiny 1fF capacitor to prevent vout from floating and crashing the transient matrix
+C1 vout 0 1f
+
+.tran 0.1n 10n
+.control
+run 
+* 2. Fixed: Wrapped node names inside v() for ngspice plotting
+plot v(din) v(dinb) 
+plot v(inp1) v(inp2)
+plot v(vout)
+.endc
+.end
