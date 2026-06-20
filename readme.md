@@ -42,40 +42,89 @@ The project initiated with the following explicit engineering design instruction
 
 ### **1. Handcoded Baseline Netlist (Without AI)**
 ```spice
-* Fully Corrected Transmission Gate Testbench
-
-* 1. Fixed: Restored working absolute library path
 .lib "/workspaces/vsd-7nm/avsddac_3v3_sky130_v1/sky130_fd_pr/models/sky130.lib.spice" tt
 
-* Inverter 1 (din -> dinb)
-XM1 dinb din 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM1 dinb din 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6 
 XM2 dinb din vdd vdd sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
 
-* Inverter 2 (dinb -> dd)
 XM7 dd dinb 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
 XM8 dd dinb vdd vdd sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
 
-* Transmission Gate (Fixed: Removed trailing non-breaking hidden spaces)
 XM3 vout dinb inp2 inp2 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
 XM4 inp1 dd vout vout sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
-XM5 vout dinb inp1 inp1 sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
-XM6 inp2 dd vout vout sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
 
-* Voltage Sources (Fixed: Dropped 'V' from '3.3V' to prevent syntax confusion)
+XM5 vout dinb inp1 inp1 sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+XM6 inp2 dd vout vout sky130_fd_pr__pfet_01v8 L=0.15 W=1.2 
+
+
 V1 din 0 PULSE 0 1.8 0ns 100p 100p 5n 10n
-V2 vdd 0 dc 3.3
+V2 vdd 0 dc 3.3V
 V4 inp2 0 dc 0
 V3 inp1 0 dc 1.65
 
-* Added a tiny 1fF capacitor to prevent vout from floating and crashing the transient matrix
-C1 vout 0 1f
 
 .tran 0.1n 10n
 .control
 run 
-* 2. Fixed: Wrapped node names inside v() for ngspice plotting
-plot v(din) v(dinb) 
-plot v(inp1) v(inp2)
-plot v(vout)
+plot din dinb 
+plot inp1 inp2
+plot vout
 .endc
 .end
+```
+<img width="1072" height="802" alt="Screenshot 2026-06-20 143135" src="https://github.com/user-attachments/assets/930aee6b-12e8-484a-b795-a5d3e8b481ed" />
+
+
+AI WRITTEN NETLIST:
+```
+* switch_tb.spice - 2-to-1 analog multiplexer testbench
+.lib "/workspaces/vsd-7nm/avsddac_3v3_sky130_v1/sky130_fd_pr/models/sky130.lib.spice" tt
+
+* Required for SKY130 PDK model binning
+.option scale=1u
+.global VDD GND
+
+* Subcircuit definition
+.subckt switch Vin1 Vin2 bit bit_b Vout
+X1 Vout bit   Vin1 GND sky130_fd_pr__nfet_01v8 w=1.0 l=0.15
+X2 Vout bit_b Vin1 VDD sky130_fd_pr__pfet_01v8 w=2.0 l=0.15
+X3 Vout bit_b Vin2 GND sky130_fd_pr__nfet_01v8 w=1.0 l=0.15
+X4 Vout bit   Vin2 VDD sky130_fd_pr__pfet_01v8 w=2.0 l=0.15
+.ends switch
+
+* Global Power Supply
+Vdd VDD GND 1.8
+
+* Analog Input DC Sources
+Vinp1 inp1 GND 1.65
+Vinp2 inp2 GND 0.0
+
+* Digital Control Stimuli (Restored dinb to 3.3V to match target matrix plot)
+Vdin  din  GND pwl(0 1.8  5n 1.8  5.01n 0.0  10n 0.0)
+Vdinb dinb GND pwl(0 0.0  5n 0.0  5.01n 3.3  10n 3.3)
+
+* Switch Instantiation
+XSwitch inp1 inp2 din dinb vout switch
+
+* Adjusted step size to 81.3p to output exactly 123 data rows over 10ns
+.tran 81.3p 10n
+
+* Simulation and Plotting Control Block
+.control
+run
+
+* Generate three separate plot windows to match your exact layout matrix
+plot vout
+plot din dinb
+plot inp1 inp2
+.endc
+
+.end
+```
+<img width="1427" height="876" alt="Screenshot 2026-06-20 151300" src="https://github.com/user-attachments/assets/b3dc2294-139e-4a4c-9a91-32c653df2da7" />
+
+<img width="843" height="647" alt="Screenshot 2026-06-20 151340" src="https://github.com/user-attachments/assets/18444cf4-114e-4eae-afe8-93f208e6fc56" />
+
+
+
+
