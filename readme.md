@@ -832,6 +832,7 @@ and established the correct methodology for hierarchical DAC design in Xschem + 
 # 4-Bit DAC Design and Verification Workflow
 
 # Design Hierarchy
+```
 4-bit DAC
 │
 ├── ai3bitdac
@@ -843,6 +844,7 @@ and established the correct methodology for hierarchical DAC design in Xschem + 
 │   └── ai2bitdac
 │
 └── TG2
+```
 
 # Files Used
 
@@ -1066,6 +1068,14 @@ A hierarchical 4-bit DAC was successfully constructed from:
 * TG2
 
 The design was simulated in ngspice, debugged, and verified through transient analysis and waveform inspection.
+
+# simulation results 4bit ai assited design:
+<img width="848" height="718" alt="Screenshot 2026-06-25 034601" src="https://github.com/user-attachments/assets/e5fc10dd-7b99-435a-9247-5227954b3c1f" />
+
+#  simulation results 4bit hardcoded design:
+<img width="918" height="700" alt="Screenshot 2026-06-25 025924" src="https://github.com/user-attachments/assets/46355d63-9c4f-4c38-a3d1-ce53c2de00d7" />
+
+
 
 
 
