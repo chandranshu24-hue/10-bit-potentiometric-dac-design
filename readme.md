@@ -1,4 +1,4 @@
-# **Research Report: Development of an AI-Assisted Analog Multiplexer Switch for a 10-Bit Potentiometric DAC**
+# **Research Report: Development of an AI-Assisted 10-Bit Potentiometric DAC**
 
 This repository documents the comprehensive troubleshooting history, prompt optimization paths, and comparative benchmarks for a pre-layout simulation of a 2-to-1 analog multiplexer pass-gate switch. This block is designed for integration into a 10-bit potentiometric DAC architecture using the SkyWater 130nm PDK (`sky130_fd_pr`) simulated within an `ngspice` environment.
 
@@ -339,6 +339,7 @@ plot x1_d0 x1_d1 x1_out_v title chandranshu
 .end
 ```
 <img width="817" height="757" alt="image" src="https://github.com/user-attachments/assets/597d2fbc-0501-4aaf-8e18-402e22d26d38" />
+
 ## AI generated netlsit and output
 ```
 *****************************************************
@@ -399,7 +400,9 @@ plot v(d0)
 .endc
 .end
 ```
-<img width="1647" height="780" alt="Screenshot 2026-06-24 203537" src="https://github.com/user-attachments/assets/da6ef14a-be22-448b-aad9-2a31bbd90471" />
+<img width="817" height="757" alt="Screenshot 2026-06-24 203537" src="https://github.com/user-attachments/assets/ca4efd6f-75c8-4cae-93e5-c75d20799fcc" />
+
+
 
 
 
