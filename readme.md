@@ -272,6 +272,136 @@ The failure resulted from reconstructing the hierarchical subcircuit interface i
 
 Once the original Xschem-generated interface was restored, the DAC produced the expected four-level staircase output.
 
+#Hard coded netlsit and output
+```
+
+.lib "/workspaces/vsd-7nm/avsddac_3v3_sky130_v1/sky130_fd_pr/models/sky130.lib.spice" tt
+
+
+**.subckt 2bitdac_tb
+x1 x1_vdd x1_vref1 0 x1_out_v x1_d1 x1_d0 x1_vref5 2bitdac
+V1 x1_vdd 0 dc 3.3
+V2 x1_d0 0 PULSE 0 1.8 0ns 1p 1p 5u 10u
+V3 x1_d1 0 PULSE 0 1.8 0ns 1p 1p 10u 20u
+V4 x1_vref5 0 dc 0.1
+V5 x1_vref1 0 dc 3.3V
+**.ends
+
+* expanding   symbol:  /home/harshitha/Desktop/xschem/xschem_library/2bitdac.sym # of pins=7
+
+.subckt 2bitdac  vdd vref1 gnda out_v d1 d0 vref5
+*.ipin vref1
+*.ipin vref5
+*.ipin d0
+*.ipin d1
+*.iopin vdd
+*.iopin gnda
+*.opin out_v
+x1 x1_inp1 vdd x1_vout d0 gnda x1_inp2 TG2
+x2 x2_inp1 vdd x2_vout d0 gnda vref5 TG2
+x3 x1_vout vdd out_v d1 gnda x2_vout TG2
+R1 x1_inp1 vref1 500 
+R2 x1_inp2 x1_inp1 500
+R3 x2_inp1 x1_inp2 500
+R4 vref5 x2_inp1 250
+.ends
+
+
+* expanding   symbol:  /home/harshitha/Desktop/xschem/xschem_library/TG2.sym # of pins=6
+
+.subckt TG2  inp1 vdd vout din 0 inp2
+*.ipin inp1
+*.ipin inp2
+*.opin vout
+*.ipin din
+*.iopin vdd
+*.iopin gnda
+
+XM1 dinb din 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6 
+XM2 dinb din vdd vdd sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+XM7 dd dinb 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM8 dd dinb vdd vdd sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+XM3 vout dinb inp2 inp2 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM4 inp1 dd vout vout sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+
+XM5 vout dinb inp1 inp1 sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+XM6 inp2 dd vout vout sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+.ends
+
+.tran 1n 20u
+.control
+run 
+plot x1_d0 x1_d1 x1_out_v title chandranshu
+.endc
+.end
+```
+<img width="817" height="757" alt="image" src="https://github.com/user-attachments/assets/597d2fbc-0501-4aaf-8e18-402e22d26d38" />
+## AI generated netlsit and output
+```
+*****************************************************
+* 2-Bit Resistor String DAC Testbench
+*****************************************************
+
+.lib "/workspaces/vsd-7nm/avsddac_3v3_sky130_v1/sky130_fd_pr/models/sky130.lib.spice" tt
+
+.include switch.spice
+
+*****************************************************
+* Power Supplies
+*****************************************************
+VDD     switch_vdd    0    DC 3.3
+VSS     switch_gnda   0    DC 0
+
+*****************************************************
+* Reference Voltages
+*****************************************************
+VREFH   inp1          0    DC 1.65
+VREFL   inp2          0    DC 0
+
+*****************************************************
+* Resistor String
+*****************************************************
+R4  inp1   N1    500
+R1  N1     N2    500
+R2  N2     N3    500
+R3  N3     inp2  250
+
+*****************************************************
+* Digital Inputs
+*****************************************************
+* LSB
+Vd0 d0 0 PULSE(0 1.8 0u 100p 100p 5u 10u)
+* MSB
+Vd1 d1 0 PULSE(0 1.8 0u 100p 100p 10u 20u)
+*****************************************************
+* Switches
+*****************************************************
+* First Stage
+XSW1 N1     N2     d0   x1_out   switch_vdd switch_gnda switch
+*XSW2 N3     inp2   d0   x2_out   switch_vdd switch_gnda switch
+* Second Stage
+XSW3 x1_out x2_out d1   out_v    switch_vdd switch_gnda switch
+*****************************************************
+* Analysis
+*****************************************************
+.tran 0.05u 40u
+*****************************************************
+* Control
+*****************************************************
+.control
+run
+plot v(N3)
+plot v(x2_out)
+plot v(d0)
+.endc
+.end
+```
+<img width="1647" height="780" alt="Screenshot 2026-06-24 203537" src="https://github.com/user-attachments/assets/da6ef14a-be22-448b-aad9-2a31bbd90471" />
+
+
 
 
 
