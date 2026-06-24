@@ -822,7 +822,254 @@ Successfully identified:
 - Subcircuit naming mismatch
 
 and established the correct methodology for hierarchical DAC design in Xschem + ngspice.
-````
+
+# simulation results for ai assited 3bit dac:
+<img width="1627" height="735" alt="Screenshot 2026-06-25 011925" src="https://github.com/user-attachments/assets/45737e24-b7c3-4e33-895f-3e0977546b81" />
+
+# simulation results for hardcoded 3bit dac:
+<img width="896" height="706" alt="Screenshot 2026-06-25 024622" src="https://github.com/user-attachments/assets/5c6ef78b-16ad-4148-a6d6-eb5110dc238f" />
+
+# 4-Bit DAC Design and Verification Workflow
+
+# Design Hierarchy
+4-bit DAC
+│
+├── ai3bitdac
+│   ├── ai2bitdac
+│   └── ai2bitdac
+│
+├── ai3bitdac
+│   ├── ai2bitdac
+│   └── ai2bitdac
+│
+└── TG2
+
+# Files Used
+
+## ai2bitdac.spice
+
+Base DAC block.
+
+## ai3bitdac.spice
+
+Constructed using:
+
+```spice
+.include "ai2bitdac.spice"
+
+.subckt ai3bitdac vdd vref1 gnda out_v d2 d1 d0 vref5
+
+X1 vdd vref1 gnda x1_out_v d1 d0 x1_vref5 ai2bitdac
+X2 vdd x2_vref1 gnda x2_out_v d1 d0 vref5 ai2bitdac
+
+R1 x1_vref5 x2_vref1 250
+
+X3 x1_out_v vdd out_v d2 gnda x2_out_v TG2
+
+.ends ai3bitdac
+```
+
+## TG2.spice
+
+Transmission-gate based selector.
+
+Used as the digital-controlled multiplexer between DAC sections.
+
+## ai4bitdac.spice
+
+Top-level hierarchical DAC.
+
+```spice
+.subckt ai4bitdac vdd inp1 gnda inp2 d0 d1 d2 d3 out_v
+
+X1 vdd inp1 gnda x1_out_v d2 d1 d0 x1_inp2 ai3bitdac
+
+X2 vdd x2_inp1 gnda x2_out_v d2 d1 d0 inp2 ai3bitdac
+
+R1 x1_inp2 x2_inp1 250
+
+X3 x1_out_v vdd out_v d3 gnda x2_out_v TG2
+
+.ends ai4bitdac
+```
+
+---
+
+# Debugging and Verification Log
+
+| Stage | User Input / Issue                                  | Root Cause Identified                                          | Resolution                                                         |
+| ----- | --------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 1     | Provided 4-bit DAC schematic (.sch)                 | Need SPICE hierarchy extraction                                | Generated initial ai4bitdac.spice                                  |
+| 2     | Shared ai3bitdac.spice                              | Port ordering was unknown                                      | Derived exact node mapping                                         |
+| 3     | Shared TG2.spice                                    | TG2 pin sequence needed verification                           | Corrected top-level instantiation                                  |
+| 4     | ngspice error: "Not enough parameters for v source" | Backslash continuation interpreted incorrectly by ngspice      | Converted multi-line instance declarations into single-line format |
+| 5     | Multiple subckt redefinition warnings               | Same files included at multiple hierarchy levels               | Removed redundant .include statements                              |
+| 6     | Simulation entered ngspice prompt                   | No runtime issue detected                                      | Executed run command manually                                      |
+| 7     | Verified transient solution                         | Hierarchy loaded correctly                                     | Confirmed successful simulation                                    |
+| 8     | Output waveform generated                           | Needed DAC validation                                          | Examined staircase response                                        |
+| 9     | Output appeared inverted                            | DAC architecture naturally generated descending transfer curve | Verified monotonic operation                                       |
+| 10    | Requested waveform similar to reference             | Only output node plotted                                       | Added digital input signals to plot command                        |
+
+---
+
+# Testbench Structure
+
+```spice
+VDD vdd 0 1.8
+VGND gnda 0 0
+
+VREFH inp1 0 1.8
+VREFL inp2 0 0
+
+VD0 d0 0 PULSE(...)
+VD1 d1 0 PULSE(...)
+VD2 d2 0 PULSE(...)
+VD3 d3 0 PULSE(...)
+
+XDAC vdd inp1 gnda inp2 d0 d1 d2 d3 out_v ai4bitdac
+
+.tran 100p 160n
+```
+
+---
+
+# Common Errors Encountered
+
+## Error 1
+
+```text
+Not enough parameters for v source
+```
+
+Cause:
+
+```spice
+XDAC \
+vdd \
+inp1 \
+...
+```
+
+ngspice interpreted:
+
+```spice
+vdd \
+```
+
+as a voltage source declaration.
+
+Fix:
+
+```spice
+XDAC vdd inp1 gnda inp2 d0 d1 d2 d3 out_v ai4bitdac
+```
+
+---
+
+## Error 2
+
+```text
+redefinition of .subckt tg2
+```
+
+Cause:
+
+Repeated includes.
+
+Fix:
+
+Keep all includes only in:
+
+```spice
+ai4bitdac_tb.spice
+```
+
+Remove includes from lower hierarchy levels.
+
+---
+
+# Verification Results
+
+## Simulation Status
+
+✓ Successful
+
+## Number of DAC Codes
+
+16
+
+## Reference Voltages
+
+```text
+VREFH = 1.8V
+VREFL = 0V
+```
+
+## Effective Resolution
+
+```text
+4 bits
+```
+
+## LSB Size
+
+```text
+LSB = 1.8 / 16
+    = 112.5 mV
+```
+
+## Output Behaviour
+
+Observed:
+
+```text
+0000 -> ~1.68V
+1111 -> ~0V
+```
+
+The DAC exhibits:
+
+* Monotonic transfer characteristic
+* Approximately uniform step size
+* Full-scale swing close to theoretical value
+
+---
+
+# Plot Commands
+
+Output only:
+
+```spice
+plot v(out_v)
+```
+
+Output plus digital inputs:
+
+```spice
+plot v(out_v) v(d0) v(d1) v(d2) v(d3)
+```
+
+Separated traces:
+
+```spice
+plot v(out_v)+2.0 v(d3)+1.5 v(d2)+1.0 v(d1)+0.5 v(d0)
+```
+
+---
+
+# Final Outcome
+
+A hierarchical 4-bit DAC was successfully constructed from:
+
+* ai2bitdac
+* ai3bitdac
+* TG2
+
+The design was simulated in ngspice, debugged, and verified through transient analysis and waveform inspection.
+
+
+
+
 
 
 
