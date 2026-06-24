@@ -402,6 +402,428 @@ plot v(d0)
 ```
 <img width="817" height="757" alt="Screenshot 2026-06-24 203537" src="https://github.com/user-attachments/assets/ca4efd6f-75c8-4cae-93e5-c75d20799fcc" />
 
+# 3-Bit DAC Design Debugging Workflow
+## Xschem + ngspice + SKY130
+### Debug Session Log (AI Assisted)
+
+Hierarchy:
+
+```text
+3bitdac
+│
+├── 2bitdac
+│   ├── TG2
+│   ├── TG2
+│   └── TG2
+│
+├── 2bitdac
+│   ├── TG2
+│   ├── TG2
+│   └── TG2
+│
+└── TG2
+```
+
+---
+
+# Phase 1 : Transmission Gate Verification
+
+| User Prompt | AI Response | Observation |
+|------------|-------------|------------|
+| "give me ngspice netlist to generate tran waveform for this schematic" | Generated TG testbench | Needed verification |
+| Provided switch.spice | Reviewed subckt | Standalone TG simulation required |
+| "switch.spice is absolutely correct" | Accepted verified version | TG design considered golden reference |
+| Provided waveform | Compared expected and actual | TG circuit verified |
+
+---
+
+# Verified TG2 Netlist
+
+```spice
+.subckt TG2 inp1 vdd vout din 0 inp2
+
+XM1 dinb din 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM2 dinb din vdd vdd sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+XM7 dd dinb 0 0 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM8 dd dinb vdd vdd sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+XM3 vout dinb inp2 inp2 sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+XM4 inp1 dd vout vout sky130_fd_pr__nfet_01v8 L=0.15 W=0.6
+
+XM5 vout dinb inp1 inp1 sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+XM6 inp2 dd vout vout sky130_fd_pr__pfet_01v8 L=0.15 W=1.2
+
+.ends
+```
+
+---
+
+# Phase 2 : 2-Bit DAC Debugging
+
+## User Observation
+
+```text
+Expected:
+4 staircase levels
+
+Observed:
+Incorrect output waveform
+```
+
+---
+
+## Investigation
+
+| User Input | Analysis |
+|------------|-----------|
+| Output waveform screenshot | Ladder checked |
+| XSW instance lines | Pin mapping checked |
+| TG2 waveform | Verified |
+| Resistor ladder waveform | Verified |
+
+---
+
+## Actual Discovery
+
+User provided hardcoded netlist:
+
+```spice
+.subckt 2bitdac ...
+```
+
+and
+
+```spice
+.subckt TG2 ...
+```
+
+This netlist produced the correct waveform.
+
+---
+
+## Root Cause
+
+AI originally assumed:
+
+```spice
+.subckt switch inp1 inp2 din vout vdd gnda
+```
+
+Actual Xschem generated hierarchy:
+
+```spice
+.subckt TG2 inp1 vdd vout din 0 inp2
+```
+
+---
+
+## Lesson Learned
+
+Never infer:
+
+- port order
+- hierarchy
+- symbol mapping
+
+from transistor schematic.
+
+Always trust:
+
+```text
+Generated Xschem netlist
+```
+
+---
+
+# Phase 3 : 3-Bit DAC Generation
+
+## User Prompt
+
+```text
+now you know how to write netlist for 2bit dac,
+write netlist for 3bit dac
+```
+
+---
+
+## User Provided
+
+### 3bitdac.sch
+
+Complete schematic text.
+
+### Architecture
+
+```text
+Upper 2bit DAC
+      |
+      |
+      +---- TG2 ----> OUT
+      |
+      |
+Lower 2bit DAC
+```
+
+---
+
+## Generated ai3bitdac
+
+```spice
+.subckt ai3bitdac vdd vref1 gnda out_v d2 d1 d0 vref5
+
+X1 vdd vref1 gnda x1_out_v d1 d0 x1_vref5 ai2bitdac
+
+X2 vdd x2_vref1 gnda x2_out_v d1 d0 vref5 ai2bitdac
+
+R1 x1_vref5 x2_vref1 250
+
+X3 x1_out_v vdd out_v d2 gnda x2_out_v TG2
+
+.ends ai3bitdac
+```
+
+---
+
+# Phase 4 : First Error
+
+## Error
+
+```text
+unknown subckt:
+2bitdac
+```
+
+---
+
+## Cause
+
+No definition loaded for:
+
+```spice
+.subckt ai2bitdac
+```
+
+---
+
+## Fix
+
+```spice
+.include "ai2bitdac.spice"
+```
+
+inside
+
+```spice
+ai3bitdac.spice
+```
+
+---
+
+# Phase 5 : Second Error
+
+## Error
+
+```text
+Warning:
+redefinition of sky130_fd_pr__nfet_01v8
+redefinition of sky130_fd_pr__pfet_01v8
+...
+```
+
+---
+
+## Cause
+
+Library loaded multiple times.
+
+Observed hierarchy:
+
+```text
+ai3bitdac_tb
+   |
+   +-- .lib
+   |
+   +-- ai3bitdac
+           |
+           +-- .lib
+           |
+           +-- ai2bitdac
+                    |
+                    +-- .lib
+```
+
+---
+
+## Fix
+
+Keep:
+
+```spice
+.lib sky130.lib.spice tt
+```
+
+ONLY in:
+
+```spice
+ai3bitdac_tb.spice
+```
+
+Remove from:
+
+```text
+ai3bitdac.spice
+ai2bitdac.spice
+```
+
+---
+
+# Phase 6 : Third Error
+
+## Error
+
+```text
+Warning:
+redefinition of ai3bitdac
+redefinition of ai2bitdac
+redefinition of TG2
+```
+
+---
+
+## Cause
+
+Duplicate include statements.
+
+Observed:
+
+```spice
+.include "ai3bitdac.spice"
+
+...
+
+.include ai3bitdac.spice
+```
+
+---
+
+## Fix
+
+Keep only:
+
+```spice
+.include "ai3bitdac.spice"
+```
+
+---
+
+# Phase 7 : Final Error
+
+## Error
+
+```text
+unknown subckt:
+XDAC
+...
+3bitdac
+```
+
+---
+
+## User Provided
+
+```spice
+.subckt ai3bitdac ...
+```
+
+and
+
+```spice
+XDAC
+...
+3bitdac
+```
+
+---
+
+## Root Cause
+
+Name mismatch.
+
+Defined:
+
+```spice
+.subckt ai3bitdac
+```
+
+Instantiated:
+
+```spice
+XDAC ... 3bitdac
+```
+
+---
+
+## Fix
+
+Change:
+
+```spice
++ 3bitdac
+```
+
+to:
+
+```spice
++ ai3bitdac
+```
+
+---
+
+# Final Hierarchy
+
+```text
+ai3bitdac_tb.spice
+        |
+        +---- ai3bitdac.spice
+                    |
+                    +---- ai2bitdac.spice
+                                |
+                                +---- TG2
+```
+
+---
+
+# Major Lessons Learned
+
+| Lesson | Description |
+|----------|-------------|
+| 1 | Never infer subckt interfaces manually |
+| 2 | Xschem symbol pin order is authoritative |
+| 3 | Verify generated netlists before editing |
+| 4 | Load SKY130 library only once |
+| 5 | Avoid duplicate includes |
+| 6 | Keep hierarchy clean |
+| 7 | Reusable blocks should contain only .subckt definitions |
+| 8 | Test lower-level blocks independently |
+| 9 | Preserve Xschem generated naming |
+| 10 | ngspice maps pins by position, not by name |
+
+---
+
+# Final Outcome
+
+Successfully identified:
+
+- TG2 hierarchy issues
+- Symbol/subckt mismatches
+- Duplicate include problems
+- Multiple .lib loading problems
+- Subcircuit naming mismatch
+
+and established the correct methodology for hierarchical DAC design in Xschem + ngspice.
+````
+
 
 
 
